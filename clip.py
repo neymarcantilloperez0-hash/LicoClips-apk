@@ -3699,6 +3699,13 @@ ol{padding-left:20px;margin:6px 0} li{margin:5px 0}
  .modal.editfs #e_stage{height:38vh;width:auto;aspect-ratio:9/16;max-width:100%;margin:0 auto}
  .modal.editfs .big>div:last-child{flex:1;min-height:0;overflow:auto;background:var(--card);border-radius:20px 20px 0 0;padding:12px 12px 90px}
 }
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cc{border:0;border-radius:20px;padding:16px;min-height:150px;text-align:left;color:#fff;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;font-weight:800;font-size:16px;position:relative;overflow:hidden}
+.cc small{font-weight:500;opacity:.85;font-size:12px}.cc i{position:absolute;top:12px;left:14px;font-style:normal;font-size:36px}
+#bnav{display:none}
+@media(max-width:900px){#bnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--bg2);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+ #bnav button{flex:1;border:0;background:transparent;color:#94a3b8;display:flex;flex-direction:column;align-items:center;font-size:11px;padding:6px 0;border-radius:14px}
+ #bnav button i{font-style:normal;font-size:20px}#bnav button.on{color:var(--ac);background:var(--card2)}.main{padding-bottom:84px}}
 </style>
 </head>
 <body>
@@ -3722,6 +3729,7 @@ ol{padding-left:20px;margin:6px 0} li{margin:5px 0}
   <button class="it" data-t="me"><span class="ic">⚙️</span>Mi cuenta</button>
   <div class="sys"><div><span class="dot"></span><b>Sistema en línea</b></div><div id="sysbadges" style="margin-top:6px"></div></div>
 </aside>
+<nav id="bnav"><button data-t="home"><i>🏠</i>Inicio</button><button data-t="create"><i>➕</i>Crear</button><button data-t="cola"><i>🚀</i>Cola</button><button data-t="me"><i>👤</i>Cuenta</button></nav>
 <main class="main">
 <div class="top"><button id="menubtn">☰</button><b>Lico Clips</b></div>
 
@@ -3737,6 +3745,7 @@ ol{padding-left:20px;margin:6px 0} li{margin:5px 0}
 </section>
 
 <!-- ===================== STREAMS ===================== -->
+<section id="p-create" class="hide"><h2 style="margin:4px 0 2px">Crear</h2><div class="sub" style="margin-bottom:14px">Elige qué quieres hacer</div><div class="cgrid"><button class="cc" data-go="new" style="background:linear-gradient(145deg,#0ea5e9,#6366f1)"><i>🎬</i>Clips con IA<small>Pega un stream y la IA saca lo mejor</small></button><button class="cc" data-go="clips" style="background:linear-gradient(145deg,#14b8a6,#0ea5e9)"><i>✂️</i>Editor de clips<small>Edita y exporta tus clips</small></button><button class="cc" data-go="cola" style="background:linear-gradient(145deg,#f59e0b,#ef4444)"><i>🚀</i>Publicar<small>Cola de publicaciones</small></button><button class="cc" data-go="cal" style="background:linear-gradient(145deg,#8b5cf6,#ec4899)"><i>🗓</i>Calendario<small>Programa tus videos</small></button><button class="cc" data-go="ana" style="background:linear-gradient(145deg,#22c55e,#14b8a6)"><i>📊</i>Analíticas<small>Mira cómo van tus clips</small></button><button class="cc" data-go="agent" style="background:linear-gradient(145deg,#64748b,#0f172a)"><i>🤖</i>Agente IA<small>Pídele ayuda a la IA</small></button></div></section>
 <section id="p-streams" class="hide">
   <div class="row"><h2 class="grow" style="margin:0">Streams</h2><button class="btn sm" id="streamnew">＋ Nuevo stream</button></div>
   <div class="card" style="margin-top:10px"><div id="jobs" class="sub">Cargando…</div></div>
@@ -3871,12 +3880,12 @@ const CATN={risas:"😂 Risas",terror:"😱 Terror",polemica:"🔥 Polémica",ep
 let TPLS=[],FILT="all",SORT="score",CFG={},ASSETS=[],ACC={},cur=null,JOB=null,pollT=null,edits={},sel=new Set();
 
 /* ---------- pestañas ---------- */
-const PAGES=["home","streams","new","clips","cal","cola","ana","agent","acc","me"];
+const PAGES=["home","create","streams","new","clips","cal","cola","ana","agent","acc","me"];
 function tab(t){
   if(!PAGES.includes(t))t="home";
   $$("#side .it").forEach(b=>b.classList.toggle("on",b.dataset.t===t||(t==="new"&&b.dataset.t==="streams")));
   PAGES.forEach(x=>$("#p-"+x).classList.toggle("hide",x!==t));
-  document.body.classList.remove("menu");
+  document.body.classList.remove("menu");$$("#bnav button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
   if(t==="cola")loadQueue(); if(t==="acc")loadAcc(); if(t==="me")loadSettingsTab(); if(t==="streams")loadJobs(); if(t==="home")loadHome();
   if(t==="cal")loadCal(); if(t==="ana")loadAna(); if(t==="new")loadNew();
   if(t==="clips"&&!cur)autoOpenLast();
@@ -3884,6 +3893,8 @@ function tab(t){
   window.scrollTo(0,0);
 }
 $("#side").onclick=e=>{const b=e.target.closest("[data-t]");if(b)tab(b.dataset.t)};
+$("#bnav").onclick=e=>{const b=e.target.closest("[data-t]");if(b)tab(b.dataset.t)};
+$("#p-create").onclick=e=>{const b=e.target.closest("[data-go]");if(b)tab(b.dataset.go)};
 $("#menubtn").onclick=()=>document.body.classList.toggle("menu");
 $("#scrim").onclick=()=>document.body.classList.remove("menu");
 $("#newbtn").onclick=$("#homego").onclick=$("#streamnew").onclick=()=>tab("new");
@@ -4235,6 +4246,7 @@ function openEditor(i){
    <div class="tabs" id="e_tabs"><button data-et="fr"><i>🎬</i>Diseño</button><button data-et="ov"><i>🔤</i>Elementos</button><button data-et="ia"><i>✨</i>Mejoras</button><button data-et="au"><i>🎵</i>Audio</button><button data-et="sub"><i>💬</i>Subs</button><button data-et="tm"><i>✂️</i>Recortar</button><button data-et="bg"><i>🖼</i>Fondo</button></div>
    <div id="e_pane"></div>
    <div class="g2" style="margin-top:14px;grid-template-columns:1fr 1fr 1fr"><div><label>Calidad de exportación</label><select id="e_q"><option value="alta" selected>Máxima</option><option value="media">Media</option><option value="baja">Ligera</option></select></div><div><label>Resolución</label><select id="e_res"><option value="1080" selected>1080p</option><option value="720">720p</option></select></div><div><label>Cuadros</label><select id="e_fps"><option value="30" selected>30 fps</option><option value="60">60 fps</option></select></div></div>
+   <button class="btn sec sm" id="e_tpl" style="margin-top:10px">💾 Guardar como plantilla</button>
    <div class="row" style="margin-top:10px"><button class="btn lg grow" id="e_make">🔄 Rehacer este clip</button></div>
    <div class="row" style="margin-top:8px" id="e_after"></div>
   </div></div>`;
@@ -4275,6 +4287,7 @@ function openEditor(i){
     ["start","end"].forEach(k=>$("#e_"+k).onchange=ev=>{const v=parseT(ev.target.value),e=E();if(v!==null)e[k]=Math.max(0,Math.min(JOB.meta.duration,v));ev.target.value=fmtT(e[k]);fix()});
     $("#e_pane").onclick=ev=>{const n=ev.target.dataset.nudge;if(n){const [k,d]=n.split(":"),e=E();e[k]=Math.max(0,Math.min(JOB.meta.duration,e[k]+ +d));$("#e_"+k).value=fmtT(e[k]);fix()}};
     const lo=Math.max(0,e.start-30),hi=Math.min(JOB.meta.duration,e.end+30),tr=$("#e_trim");
+    tr.insertAdjacentHTML("afterbegin",`<div style="position:absolute;inset:0;display:flex;border-radius:10px;overflow:hidden;opacity:.8;pointer-events:none">${[0,1,2,3,4,5,6,7].map(i=>`<img loading="lazy" src="/api/frame/${JOB.id}/${Math.round(lo+(hi-lo)*(i+.5)/8)}" style="flex:1;min-width:0;height:100%;object-fit:cover">`).join("")}</div>`);
     const place=()=>{const e=E(),a=(e.start-lo)/(hi-lo)*100,b=(e.end-lo)/(hi-lo)*100;$("#e_trsel").style.cssText+=`;left:${a}%;width:${b-a}%`;$("#e_hs").style.left=a+"%";$("#e_he").style.left=b+"%"};place();
     [["e_hs","start"],["e_he","end"]].forEach(([id,k])=>$("#"+id).onpointerdown=ev=>{ev.preventDefault();const r=tr.getBoundingClientRect();
       const mv=m=>{const e=E();let t=lo+Math.min(1,Math.max(0,(m.clientX-r.left)/r.width))*(hi-lo);t=Math.round(t*2)/2;t=k==="start"?Math.min(t,e.end-3):Math.max(t,e.start+3);e[k]=t;$("#e_"+k).value=fmtT(t);place();upd()};
@@ -4306,7 +4319,7 @@ function openEditor(i){
     <div class="lgrid" id="e_lay">${Object.entries(LAYB).map(([k,t])=>`<button class="lc" data-l="${k}">${layMini(k)}<span style="pointer-events:none">${esc(t)}</span></button>`).join("")}</div>
     <div id="e_splitbox" style="margin-top:12px"><label>Altura de la cámara: <b id="sp_v"></b>%</label><input type="range" id="sp" min="20" max="60" value="${AUD.split_pct!==undefined?AUD.split_pct:((JOB.settings&&JOB.settings.split_pct)||38)}">
       <div class="seg" id="co" style="margin-top:6px"><button data-co="top">Cámara arriba</button><button data-co="bottom">Cámara abajo</button></div>
-      <div class="row" style="margin-top:8px"><button class="btn sec sm" id="lay_all">Aplicar a todos los clips</button><span class="tiny" id="lay_msg"></span></div></div>
+      <div class="row" style="margin-top:8px"><button class="btn sec sm" id="lay_cam">📷 Marcar la cámara</button><button class="btn sec sm" id="lay_all">Aplicar a todos</button><span class="tiny" id="lay_msg"></span></div></div>
     <div id="e_camwarn"></div>
     <div id="e_crop"><h3>Encuadre (pantalla completa)</h3><div class="tiny">Mueve la zona y el zoom hasta que se vea lo que quieres (tu cámara, la pantalla…). Se aplica con “Pantalla completa” (o “Inteligente” si elige ese diseño).</div>
       <label>Izquierda ↔ Derecha: <b id="e_xv"></b>%</label><input type="range" id="e_cx" min="0" max="100" value="${Math.round(e.cx*100)}">
@@ -4337,6 +4350,7 @@ const crop=$("#e_crop");crop.querySelectorAll("label,input[type=range]").forEach
 const sp=$("#sp"),spv=()=>{$("#sp_v").textContent=sp.value;$$("#co [data-co]").forEach(b=>b.classList.toggle("on",b.dataset.co===(AUD.cam_order||(JOB.settings&&JOB.settings.cam_order)||"top")))};
     sp.oninput=()=>{AUD.split_pct=+sp.value;spv()};spv();
     $$("#co [data-co]").forEach(b=>b.onclick=()=>{AUD.cam_order=b.dataset.co;spv()});
+    $("#lay_cam").onclick=()=>{$("#eclose").click();setTimeout(()=>{const c=document.getElementById("camwrap");if(c)c.scrollIntoView({behavior:"smooth",block:"center"})},400)};
     $("#lay_all").onclick=async()=>{const l=E().layout;JOB.clips.forEach(c=>{clipEdit(c).layout=l});AUD.split_pct=+sp.value;AUD.cam_order=AUD.cam_order||"top";
       try{await api("/api/settings/"+cur,{json:Object.assign({split_pct:+sp.value,cam_order:AUD.cam_order},l?{layout:l}:{})});$("#lay_msg").textContent=" Aplicado a todos ✓"}catch(er){$("#lay_msg").textContent=er.message}};
     stage.onpointerdown=ev=>{if(ev.target.closest(".ov"))return;const e=E(),r=stage.getBoundingClientRect();let x0=ev.clientX,y0=ev.clientY;
@@ -4362,6 +4376,7 @@ const sp=$("#sp"),spv=()=>{$("#sp_v").textContent=sp.value;$$("#co [data-co]").f
     EDSHOWVID=true;stage.innerHTML="";stage.style.backgroundImage="none";const v=document.createElement("video");v.controls=true;v.playsInline=true;v.autoplay=true;v.src=`/clipfile/${JOB.id}/${last.n}`;v.style.cssText="width:100%;height:100%;object-fit:cover;max-height:none;border-radius:0";stage.appendChild(v);$("#e_tv").textContent="✏️ Volver a editar"};
   $("#eclose").onclick=()=>{m.classList.add("hide");EDI=null;stage.innerHTML=""};
   $("#etop").onclick=()=>$("#e_make").click();
+  $("#e_tpl").onclick=async()=>{const n=prompt("Nombre de la plantilla:");if(!n)return;try{await api("/api/templates",{json:{name:n,settings:Object.assign({},JOB.settings||{},AUD,{layout:E().layout||(JOB.settings&&JOB.settings.layout)||"auto"})}});alert("Plantilla guardada ✓")}catch(er){alert(er.message)}};
   $("#e_make").onclick=async()=>{const e=E();if(e.end-e.start<3){alert("El clip debe durar al menos 3 segundos");return}
     $("#e_make").disabled=true;await makeClips([i],Object.assign($("#set-job").getSettings(),AUD,{quality:$("#e_q").value,resolution:$("#e_res").value,fps:$("#e_fps").value}));await poll(true);$("#e_make").disabled=false;EDSHOWVID=false;restoreStage();showTab(EDTAB)};
   if(!LAYASKED[JOB.id]){LAYASKED[JOB.id]=1;EDTAB="fr"}
