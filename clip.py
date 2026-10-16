@@ -1283,6 +1283,14 @@ def asset_path(name):
     return None
 
 
+def sanitize_bg(b):
+    b = b if isinstance(b, dict) else {}
+    hx = lambda v, d: (str(v or "").lstrip("#").lower() if re.fullmatch(r"#?[0-9a-fA-F]{6}", str(v or "")) else d)
+    return {"mode": "chroma" if b.get("mode") == "chroma" else "none", "color": hx(b.get("color"), "00ff00"),
+            "sim": round(clamp(b.get("sim"), 0.02, 0.6, 0.25), 2), "back": "image" if b.get("back") == "image" else "color",
+            "bgcolor": hx(b.get("bgcolor"), "000000"), "bgimg": str(b.get("bgimg") or "") if asset_path(str(b.get("bgimg") or "")) else ""}
+
+
 def sanitize_overlays(lst):
     """Textos e imagenes puestos encima del clip (como en CapCut). x,y = centro (0-1); size = fraccion del ancho."""
     out = []
@@ -1960,6 +1968,18 @@ def render_clip(job, sub, item, s, fc):
                       f"[sq][{mi}:v]alphamerge[cc]", f"[gbase][cc]overlay={X}:{Y}[t1]",
                       f"[t1][{ri}:v]overlay={X}:{Y}:shortest=1[vb]"]
         cur = "vb"
+        bgc = item.get("bg") or {}
+        if bgc.get("mode") == "chroma":
+            parts.append(f"[{cur}]format=rgba,chromakey=0x{bgc['color']}:{bgc['sim']}:0.1[ck]")
+            bap = asset_path(bgc.get("bgimg") or "") if bgc.get("back") == "image" else None
+            if bap:
+                bi = add_in(["-loop", "1", "-i", str(bap)])
+                parts.append(f"[{bi}:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},format=rgba[bgp]")
+            else:
+                bi = add_in(["-f", "lavfi", "-t", f"{dur:.2f}", "-i", f"color=c=0x{bgc['bgcolor']}:s={W}x{H}:r=30"])
+                parts.append(f"[{bi}:v]format=rgba[bgp]")
+            parts.append("[bgp][ck]overlay=shortest=1,format=yuv420p[vbg]")
+            cur = "vbg"
         if s["zoom_peak"] and layout != "horizontal":
             z = f"if(gte(t,{rel_peak:.2f}),0.12*exp(-5*(t-{rel_peak:.2f})),0)"
             parts.append(f"[{cur}]scale=w='trunc({W}*(1+{z})/2)*2':h='trunc({H}*(1+{z})/2)*2':eval=frame,crop={W}:{H}[vz]")
@@ -2979,7 +2999,7 @@ def api_export(jid):
         extra = {"cx": clamp(c.get("cx"), 0, 1, 0.5), "cy": clamp(c.get("cy"), 0, 1, 0.5),
                  "zoom": clamp(c.get("zoom"), 1, 4, 1.0),
                  "title_on": (bool(c["title_on"]) if c.get("title_on") is not None else None),
-                 "overlays": sanitize_overlays(c.get("overlays")),
+                 "overlays": sanitize_overlays(c.get("overlays")), "bg": sanitize_bg(c.get("bg")),
                  "cap_lines": [[round(float(x[0]), 2), round(float(x[1]), 2), str(x[2])[:90]] for x in (c.get("cap_lines") or [])[:80]
                                if isinstance(x, (list, tuple)) and len(x) >= 3]}
         orig.update({"start": st, "end": en, "title": title, "layout": lay, **extra})
@@ -4027,7 +4047,7 @@ function renderCam(){
 /* --- clips (tarjetas con clave: el <video> se crea una sola vez y NO se vuelve a tocar en cada consulta) --- */
 function clipEdit(c){return edits[c.i]||(edits[c.i]={title:c.title||"",start:c.start,end:c.end,layout:c.layout||"",
   cx:c.cx==null?.5:c.cx,cy:c.cy==null?.5:c.cy,zoom:c.zoom||1,title_on:c.title_on==null?!!(JOB.settings&&JOB.settings.titles):!!c.title_on,
-  overlays:JSON.parse(JSON.stringify(c.overlays||[])),cap_lines:JSON.parse(JSON.stringify(c.cap_lines||[])),cap_for:(c.cap_lines&&c.cap_lines.length)?[c.start,c.end]:null})}
+  overlays:JSON.parse(JSON.stringify(c.overlays||[])),cap_lines:JSON.parse(JSON.stringify(c.cap_lines||[])),bg:JSON.parse(JSON.stringify(c.bg||{mode:"none"})),cap_for:(c.cap_lines&&c.cap_lines.length)?[c.start,c.end]:null})}
 function exportsOf(i){return JOB.exports.filter(e=>e.i===i).sort((a,b)=>b.n-a.n)}
 const etaTxt=s=>s==null?"":(s>=60?" · faltan ~"+Math.ceil(s/60)+" min":" · faltan ~"+Math.max(5,s)+" s");
 const scoreOf=c=>Math.round((c.intensity||0)*10);
@@ -4096,7 +4116,7 @@ $("#clips").addEventListener("click",async e=>{
   poll(true);
 });
 async function makeClips(ids,settings){
-  const clips=ids.map(i=>{const ed=clipEdit(JOB.clips.find(c=>c.i===i));return {i,title:ed.title,start:ed.start,end:ed.end,layout:ed.layout,cx:ed.cx,cy:ed.cy,zoom:ed.zoom,title_on:ed.title_on,overlays:ed.overlays,cap_lines:ed.cap_lines}});
+  const clips=ids.map(i=>{const ed=clipEdit(JOB.clips.find(c=>c.i===i));return {i,title:ed.title,start:ed.start,end:ed.end,layout:ed.layout,cx:ed.cx,cy:ed.cy,zoom:ed.zoom,title_on:ed.title_on,overlays:ed.overlays,bg:ed.bg,cap_lines:ed.cap_lines}});
   try{await api("/api/export/"+cur,{json:{clips,settings:settings||$("#set-job").getSettings()}})}catch(e){alert(e.message)}
 }
 $("#rerender").onclick=async()=>{
@@ -4193,7 +4213,7 @@ function openEditor(i){
   <div class="big" style="margin-top:10px"><div><div class="stage" id="e_stage"></div>
     <div class="row" style="margin-top:6px;justify-content:center"><button class="btn sec sm" id="e_tv">▶ Ver el clip creado</button></div><div class="tiny" id="e_state" style="text-align:center;margin-top:4px"></div><div class="tiny" style="text-align:center">Vista aproximada: el resultado final puede variar un poco.</div></div>
   <div>
-   <div class="tabs" id="e_tabs"><button data-et="ov">🔤 Texto e imágenes</button><button data-et="sub">💬 Subtítulos</button><button data-et="fr">🎯 Encuadre</button><button data-et="tm">✂️ Tiempo</button><button data-et="ti">🏷️ Título</button></div>
+   <div class="tabs" id="e_tabs"><button data-et="ov">🔤 Texto e imágenes</button><button data-et="sub">💬 Subtítulos</button><button data-et="fr">🎯 Encuadre</button><button data-et="tm">✂️ Tiempo</button><button data-et="bg">🖼 Fondo</button><button data-et="au">🎵 Audio</button><button data-et="ti">🏷️ Título</button></div>
    <div id="e_pane"></div>
    <div class="g2" style="margin-top:14px"><div><label>Calidad de exportación</label><select id="e_q"><option value="alta" selected>Máxima</option><option value="media">Media</option><option value="baja">Ligera</option></select></div><div><label>Resolución</label><select id="e_res"><option value="1080" selected>1080p</option><option value="720">720p</option></select></div></div>
    <div class="row" style="margin-top:10px"><button class="btn lg grow" id="e_make">🔄 Rehacer este clip</button></div>
@@ -4201,7 +4221,7 @@ function openEditor(i){
   </div></div>`;
   const E=()=>clipEdit(JOB.clips.find(x=>x.i===i));
   const stage=$("#e_stage");
-  let ovm=null;
+  let ovm=null;let AUD={};
   const refreshBg=()=>{if(!EDSHOWVID)stageBg(stage,E())};
   const showTab=t=>{
     EDTAB=t;stage.onpointerdown=null;$$("#e_tabs [data-et]").forEach(x=>x.classList.toggle("on",x.dataset.et===t));const e=E(),pane=$("#e_pane");ovm=null;
@@ -4210,7 +4230,7 @@ function openEditor(i){
       if(t==="ov")return;
       if(t==="sub")paneSub();
       if(t==="fr")paneFrame();
-      if(t==="tm")paneTime();
+      if(t==="tm")paneTime();if(t==="bg")paneBg();if(t==="au")paneAud();
       if(t==="ti")paneTitle();
       /* los textos se siguen viendo (solo lectura) en las otras pestañas */
       e.overlays.forEach(o=>{const d=document.createElement("div");d.className="ov";d.style.left=o.x*100+"%";d.style.top=o.y*100+"%";d.style.pointerEvents="none";d.style.border="0";
@@ -4227,6 +4247,7 @@ function openEditor(i){
   function paneTime(){const e=E();$("#e_pane").innerHTML=`<div class="g2"><div><label>Inicio (m:ss)</label><div class="row"><button class="btn sec sm" data-nudge="start:-1">−1</button><input type="text" id="e_start" value="${fmtT(e.start)}" style="flex:1;min-width:0"><button class="btn sec sm" data-nudge="start:1">+1</button></div></div>
     <div><label>Final (m:ss)</label><div class="row"><button class="btn sec sm" data-nudge="end:-1">−1</button><input type="text" id="e_end" value="${fmtT(e.end)}" style="flex:1;min-width:0"><button class="btn sec sm" data-nudge="end:1">+1</button></div></div></div>
     <div class="tiny" id="e_dur"></div>
+    <div id="e_trim" style="position:relative;height:50px;background:var(--card2);border-radius:10px;margin:10px 0;touch-action:none"><div id="e_trsel" style="position:absolute;top:0;bottom:0;background:#38bdf84d;border:2px solid var(--ac);border-radius:8px"></div><div id="e_hs" style="position:absolute;top:-4px;width:26px;height:58px;margin-left:-13px;background:var(--ac);border-radius:8px;touch-action:none"></div><div id="e_he" style="position:absolute;top:-4px;width:26px;height:58px;margin-left:-13px;background:var(--ac);border-radius:8px;touch-action:none"></div></div><div class="tiny">Arrastra los bordes para recortar el inicio y el final.</div>
     <label>Cuadro de referencia: <b id="e_tvv"></b></label><input type="range" id="e_ts" min="${Math.floor(e.start)}" max="${Math.ceil(e.end)}" value="${EDT}">
     <div class="row" style="margin-top:8px"><button class="btn sec sm" id="e_orig">▶ Ver el momento original</button></div><div id="e_origbox" style="margin-top:8px"></div>`;
     const upd=()=>{const e=E();$("#e_dur").textContent=`Dura ${Math.round(e.end-e.start)} s · momento en el directo: ${fmtT(JOB.base_offset+e.start)}`;$("#e_tvv").textContent=fmtT(JOB.base_offset+EDT)};upd();
@@ -4234,9 +4255,28 @@ function openEditor(i){
     const trimmed=()=>{const e=E();if(e.cap_lines.length&&e.cap_for&&(e.cap_for[0]!==e.start||e.cap_for[1]!==e.end)){e.cap_lines=[];e.cap_for=null}};
     ["start","end"].forEach(k=>$("#e_"+k).onchange=ev=>{const v=parseT(ev.target.value),e=E();if(v!==null)e[k]=Math.max(0,Math.min(JOB.meta.duration,v));ev.target.value=fmtT(e[k]);fix()});
     $("#e_pane").onclick=ev=>{const n=ev.target.dataset.nudge;if(n){const [k,d]=n.split(":"),e=E();e[k]=Math.max(0,Math.min(JOB.meta.duration,e[k]+ +d));$("#e_"+k).value=fmtT(e[k]);fix()}};
+    const lo=Math.max(0,e.start-30),hi=Math.min(JOB.meta.duration,e.end+30),tr=$("#e_trim");
+    const place=()=>{const e=E(),a=(e.start-lo)/(hi-lo)*100,b=(e.end-lo)/(hi-lo)*100;$("#e_trsel").style.cssText+=`;left:${a}%;width:${b-a}%`;$("#e_hs").style.left=a+"%";$("#e_he").style.left=b+"%"};place();
+    [["e_hs","start"],["e_he","end"]].forEach(([id,k])=>$("#"+id).onpointerdown=ev=>{ev.preventDefault();const r=tr.getBoundingClientRect();
+      const mv=m=>{const e=E();let t=lo+Math.min(1,Math.max(0,(m.clientX-r.left)/r.width))*(hi-lo);t=Math.round(t*2)/2;t=k==="start"?Math.min(t,e.end-3):Math.max(t,e.start+3);e[k]=t;$("#e_"+k).value=fmtT(t);place();upd()};
+      const up=()=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up);fix()};addEventListener("pointermove",mv);addEventListener("pointerup",up)});
     $("#e_ts").onchange=ev=>{EDT=+ev.target.value;upd();refreshBg()};$("#e_ts").oninput=ev=>{$("#e_tvv").textContent=fmtT(JOB.base_offset+ +ev.target.value)};
     $("#e_orig").onclick=()=>{const e=E();$("#e_origbox").innerHTML=`<video controls playsinline autoplay src="/vod/${JOB.id}#t=${e.start},${e.end}" style="width:100%;max-height:300px"></video>`};
   }
+  function paneBg(){const e=E(),b=e.bg,ims=ASSETS.filter(a=>a.kind==="logo");
+    $("#e_pane").innerHTML=`<div class="chk"><input type="checkbox" id="b_on" ${b.mode==="chroma"?"checked":""}><span>Quitar un color del video (pantalla verde / chroma key)</span></div>
+    <div class="g2"><div><label>Color a quitar</label><input type="color" id="b_col" value="#${b.color||"00ff00"}"></div><div><label>Intensidad: <b id="b_sv"></b></label><input type="range" id="b_sim" min="0.05" max="0.5" step="0.01" value="${b.sim||0.25}"></div></div>
+    <label>Poner detrás</label><div class="g2"><select id="b_back"><option value="color"${b.back!=="image"?" selected":""}>Un color</option><option value="image"${b.back==="image"?" selected":""}>Una imagen</option></select><input type="color" id="b_bc" value="#${b.bgcolor||"000000"}"></div>
+    <select id="b_img"><option value="">Imagen…</option>${ims.map(a=>`<option value="${esc(a.name)}"${b.bgimg===a.name?" selected":""}>${esc(a.name)}</option>`).join("")}</select>
+    <div class="tiny">No se ve en la vista previa, solo en el clip final. Borrar fondo con IA aún no está disponible.</div>`;
+    const set=()=>{b.mode=$("#b_on").checked?"chroma":"none";b.color=$("#b_col").value.slice(1);b.sim=+$("#b_sim").value;b.back=$("#b_back").value;b.bgcolor=$("#b_bc").value.slice(1);b.bgimg=$("#b_img").value;$("#b_sv").textContent=b.sim.toFixed(2)};
+    $("#e_pane").oninput=$("#e_pane").onchange=set;set()}
+  function paneAud(){const ms=ASSETS.filter(a=>a.kind==="music"),S=JOB.settings||{},m0=AUD.music!==undefined?AUD.music:S.music;
+    $("#e_pane").innerHTML=`<label>Música de fondo</label><select id="a_m"><option value="">Ninguna</option>${ms.map(a=>`<option value="${esc(a.name)}"${m0===a.name?" selected":""}>${esc(a.name)}</option>`).join("")}</select>
+    <label>Volumen: <b id="a_vv"></b></label><input type="range" id="a_v" min="0.03" max="0.6" step="0.01" value="${AUD.music_volume!==undefined?AUD.music_volume:(S.music_volume||0.18)}">
+    <div class="tiny">${ms.length?"La música baja sola cuando hablan.":"Sube tu música en Mi cuenta → Música, logo e imágenes."}</div>`;
+    const set=()=>{AUD.music=$("#a_m").value;AUD.music_volume=+$("#a_v").value;$("#a_vv").textContent=AUD.music_volume.toFixed(2)};
+    $("#e_pane").oninput=$("#e_pane").onchange=set;set()}
   function paneFrame(){const e=E(),L=effLayout(e);$("#e_pane").innerHTML=`<label>Diseño de este clip</label>
     <div class="seg" id="e_lay">${Object.entries(LAYB).map(([k,t])=>`<button data-l="${k}">${esc(t)}</button>`).join("")}</div>
     <div id="e_camwarn"></div>
@@ -4275,7 +4315,7 @@ function openEditor(i){
     EDSHOWVID=true;stage.innerHTML="";stage.style.backgroundImage="none";const v=document.createElement("video");v.controls=true;v.playsInline=true;v.autoplay=true;v.src=`/clipfile/${JOB.id}/${last.n}`;v.style.cssText="width:100%;height:100%;object-fit:cover;max-height:none;border-radius:0";stage.appendChild(v);$("#e_tv").textContent="✏️ Volver a editar"};
   $("#eclose").onclick=()=>{m.classList.add("hide");EDI=null;stage.innerHTML=""};
   $("#e_make").onclick=async()=>{const e=E();if(e.end-e.start<3){alert("El clip debe durar al menos 3 segundos");return}
-    $("#e_make").disabled=true;await makeClips([i],Object.assign($("#set-job").getSettings(),{quality:$("#e_q").value,resolution:$("#e_res").value}));await poll(true);$("#e_make").disabled=false;EDSHOWVID=false;restoreStage();showTab(EDTAB)};
+    $("#e_make").disabled=true;await makeClips([i],Object.assign($("#set-job").getSettings(),AUD,{quality:$("#e_q").value,resolution:$("#e_res").value}));await poll(true);$("#e_make").disabled=false;EDSHOWVID=false;restoreStage();showTab(EDTAB)};
   showTab(EDTAB);syncEditor();
 }
 function syncEditor(){
