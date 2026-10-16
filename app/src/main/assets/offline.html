@@ -1,0 +1,60 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#06121f"><title>LicoClips</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:#06121f;color:#eaf6ff;font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+body{min-height:100vh;background:radial-gradient(900px 500px at 50% -10%,#0f4a73aa,transparent),radial-gradient(700px 500px at 100% 110%,#0c3b5c88,transparent),#06121f;overflow-x:hidden}
+#fx{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+#fx span{position:absolute;bottom:-60px;opacity:.14;animation:rise linear infinite}
+@keyframes rise{from{transform:translateY(0) rotate(0)}to{transform:translateY(-115vh) rotate(40deg)}}
+.wrap{position:relative;max-width:560px;margin:0 auto;padding:22px 18px 40px;text-align:center}
+h1{margin:6px 0 0;font-size:30px;letter-spacing:-.5px}
+h1 b{color:#38bdf8}
+.sub{color:#8fb0c9;font-size:13px}
+.logo{position:relative;width:132px;height:132px;margin:26px auto 14px}
+.logo i{position:absolute;inset:0;border-radius:50%;border:2px solid #38bdf8;opacity:0;animation:ring 2.4s ease-out infinite}
+.logo i:nth-child(2){animation-delay:.8s}.logo i:nth-child(3){animation-delay:1.6s}
+@keyframes ring{0%{transform:scale(.55);opacity:.8}100%{transform:scale(1.6);opacity:0}}
+.logo div{position:absolute;inset:18px;border-radius:30px;background:#38bdf8;color:#06223a;font-size:54px;display:flex;align-items:center;justify-content:center;animation:bob 2.6s ease-in-out infinite;box-shadow:0 10px 40px #38bdf855}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-8px) rotate(3deg)}}
+.off{display:inline-flex;gap:8px;align-items:center;background:#3a1220;color:#ff9fb2;border:1px solid #6b2a40;border-radius:999px;padding:6px 14px;font-weight:700;font-size:13px}
+.off .d{width:9px;height:9px;border-radius:50%;background:#fb7185;animation:bl 1.2s infinite}
+@keyframes bl{50%{opacity:.25}}
+h2{font-size:22px;margin:16px 0 4px}
+.card{background:#0e2338;border:1px solid #22496a;border-radius:16px;padding:14px;margin-top:18px;text-align:left}
+.card h3{margin:0 0 4px;font-size:14px;color:#38bdf8}
+.step{display:flex;gap:10px;align-items:flex-start;margin:10px 0}
+.step .n{flex:0 0 24px;height:24px;border-radius:50%;background:#38bdf8;color:#06223a;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:13px}
+pre{margin:6px 0 0;background:#06121f;border:1px solid #22496a;border-radius:10px;padding:10px 12px;font:13px/1.5 ui-monospace,Menlo,Consolas,monospace;color:#bfe8ff;white-space:pre-wrap;word-break:break-all;position:relative}
+.cp{margin-top:6px;background:#143049;color:#eaf6ff;border:1px solid #22496a;border-radius:9px;padding:7px 12px;font-weight:700;font-size:13px}
+.cp.ok{background:#34d399;color:#06231b;border-color:#34d399}
+.btn{margin-top:18px;width:100%;background:#38bdf8;color:#06223a;border:0;border-radius:13px;padding:14px;font-weight:800;font-size:16px}
+.st{margin-top:10px;color:#8fb0c9;font-size:13px}
+</style></head><body><div id="fx"></div>
+<div class="wrap">
+ <h1>Lico<b>Clips</b></h1><div class="sub">clips virales con IA</div>
+ <div class="logo"><i></i><i></i><i></i><div>▶</div></div>
+ <div class="off"><span class="d"></span>Servidor apagado</div>
+ <h2>El servidor se encuentra apagado</h2>
+ <div class="sub">LicoClips corre en tu celular, dentro de Termux. Enciéndelo y la app se abrirá sola.</div>
+ <div class="card"><h3>Cómo prenderlo</h3>
+  <div class="step"><span class="n">1</span><div>Abre <b>Termux</b>.</div></div>
+  <div class="step"><span class="n">2</span><div style="flex:1;min-width:0">Pega estos comandos:<pre id="cmd">cd ~
+termux-wake-lock
+python clip.py</pre><button class="cp" id="cp">Copiar comandos</button></div></div>
+  <div class="step"><span class="n">3</span><div>Cuando Termux diga <b>“Lico Clips listo”</b>, vuelve aquí.</div></div>
+  <div class="tiny sub">Si ya estaba abierto en otra sesión, ciérrala con <b>Ctrl + C</b> antes. Si el archivo está en otra carpeta, entra a esa carpeta con <b>cd</b>.</div>
+ </div>
+ <button class="btn" id="re">Reintentar ahora</button>
+ <div class="st" id="st">Buscando el servidor…</div>
+</div>
+<script>
+(function(){
+var em=["🎬","🎥","📹","🎞️","▶️","⭐","🔥","😂","🎮","🏆","✂️","🎧"],fx=document.getElementById("fx");
+for(var i=0;i<14;i++){var s=document.createElement("span");s.textContent=em[i%em.length];s.style.left=(Math.random()*96)+"%";s.style.fontSize=(22+Math.random()*28)+"px";s.style.animationDuration=(16+Math.random()*24)+"s";s.style.animationDelay=(-Math.random()*30)+"s";fx.appendChild(s)}
+document.getElementById("re").onclick=function(){if(window.LicoBridge)LicoBridge.retry();document.getElementById("st").textContent="Buscando el servidor…"};
+document.getElementById("cp").onclick=function(){var b=this,tx=document.getElementById("cmd").textContent;
+  if(window.LicoBridge){LicoBridge.copy(tx)}
+  b.textContent="¡Copiado!";b.classList.add("ok");setTimeout(function(){b.textContent="Copiar comandos";b.classList.remove("ok")},1800)};
+})();
+</script></body></html>
