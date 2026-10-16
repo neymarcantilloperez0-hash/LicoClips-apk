@@ -1266,12 +1266,12 @@ def analyze_job(job):
 LAYOUTS = ("auto", "split", "circle", "cam", "game", "horizontal", "fill", "dual")
 ASSET_RE = re.compile(r"^[A-Za-z0-9_.-]{1,90}$")
 DEFAULT_SETTINGS = {
-    "layout": "auto", "cam_order": "top", "split_pct": 38, "resolution": "720", "fps": "30", "quality": "media",
+    "layout": "auto", "cam_order": "top", "split_pct": 38, "resolution": "1080", "fps": "30", "quality": "alta",
     "normalize": True, "titles": True, "captions": True, "caption_style": "karaoke", "zoom_peak": True,
     "sfx": "none", "follow_action": False, "music": "", "music_volume": 0.18, "music_duck": True,
     "logo": "", "logo_pos": "tr", "intro_text": "", "outro_text": "", "game_fit": "blur", "game_x": 50,
     "circle_pos": "br", "auto_create": True,
-    "mute_profanity": False, "overlays": [],
+    "mute_profanity": False, "profanity_sound": "mute", "overlays": [],
 }
 
 
@@ -1338,6 +1338,7 @@ def sanitize_settings(s0, base=None):
     for k in ("normalize", "titles", "captions", "zoom_peak", "follow_action", "music_duck", "auto_create", "mute_profanity"):
         s[k] = flag(k)
     s["overlays"] = sanitize_overlays(s0["overlays"]) if "overlays" in s0 else sanitize_overlays(s.get("overlays"))
+    s["profanity_sound"] = pick("profanity_sound", ("mute", "beep", "low"))
     s["caption_style"] = pick("caption_style", ("karaoke", "simple"))
     s["sfx"] = pick("sfx", ("none", "boom", "whoosh", "ding"))
     s["music_volume"] = round(clamp(s0.get("music_volume", s["music_volume"]), 0.03, 0.6, 0.18), 3)
@@ -1803,7 +1804,7 @@ def render_clip(job, sub, item, s, fc):
     if job["params"]["url"]:
         setp(sub, 3, "Descargando el clip en alta calidad…")
         a_abs = max(0.0, job["base_offset"] + start - pad)
-        z = download_clip_source(job, a_abs, job["base_offset"] + end + pad, n, 1080 if int(s["resolution"]) >= 1080 else 720)
+        z = download_clip_source(job, a_abs, job["base_offset"] + end + pad, n, 2160 if int(s["resolution"]) >= 1080 else 1080)
         if z:
             info = probe(jd / z)
             src, ss, sw, sh, has_audio = z, job["base_offset"] + start - a_abs, info["width"], info["height"], info["has_audio"]
@@ -1888,7 +1889,7 @@ def render_clip(job, sub, item, s, fc):
             sub["log"].append(f"No pude crear el efecto de sonido: {str(e)[:80]}")
     music = asset_path(s["music"]) if s["music"] else None
     logo = asset_path(s["logo"]) if s["logo"] else None
-    crf = {"alta": 19, "media": 23, "baja": 28}.get(s["quality"], 23)
+    crf = {"alta": 16, "media": 22, "baja": 28}.get(s["quality"], 23)
     cx, cy, cw, ch = cam_rect_px(fc, sw, sh)
     camcrop = f"crop={cw}:{ch}:{cx}:{cy}"
     fit = s["game_fit"]
@@ -2025,7 +2026,15 @@ def render_clip(job, sub, item, s, fc):
                 af += ",loudnorm=I=-16:TP=-1.5:LRA=11"
             for (ma, mb) in mute_r:   # silencia SOLO la palabra (de su inicio a su final)
                 af += f",volume=enable='between(t,{ma:.2f},{mb:.2f})':volume=0"
-            parts.append(f"[0:a]{af}[a0]")
+            beep = s.get("profanity_sound") in ("beep", "low") and mute_r
+            if beep:
+                bi = add_in(["-f", "lavfi", "-t", f"{dur:.2f}", "-i", f"sine=frequency={1000 if s['profanity_sound'] == 'beep' else 400}:sample_rate=44100"])
+                ex = "+".join(f"between(t,{ma:.2f},{mb:.2f})" for ma, mb in mute_r)
+                parts.append(f"[0:a]{af}[a0m]")
+                parts.append(f"[{bi}:a]aformat=sample_fmts=fltp:channel_layouts=stereo,volume='0.3*({ex})':eval=frame[bp]")
+                parts.append("[a0m][bp]amix=inputs=2:duration=first:normalize=0[a0]")
+            else:
+                parts.append(f"[0:a]{af}[a0]")
         else:
             si = add_in(["-f", "lavfi", "-t", f"{dur:.2f}", "-i", "anullsrc=r=44100:cl=stereo"])
             parts.append(f"[{si}:a]aformat=sample_fmts=fltp:channel_layouts=stereo[a0]")
@@ -3421,6 +3430,25 @@ def api_tt_disc():
 
 
 # ---- publicar / cola
+@app.post("/api/title/<jid>/<int:n>")
+def api_title(jid, n):
+    j = get_job(jid)
+    c = clip_by_i(j, n)
+    if not c:
+        return err("Clip no encontrado", 404)
+    if not get_key("anthropic_key"):
+        return err("Falta la clave de Anthropic en Ajustes para usar la IA")
+    try:
+        txt = call_claude("Eres editor de clips virales de streams para TikTok/Reels. Lee lo que se dice en el clip y escribe UN título corto "
+                          "(máx 60 caracteres), en español, que dé curiosidad y describa lo que pasa. Sin groserías, sin comillas, sin hashtags. "
+                          "Responde solo el título.",
+                          json.dumps({"categoria": c.get("cat", ""), "titulo_actual": c.get("title", ""),
+                                      "transcripcion": (c.get("transcript") or "")[:600]}, ensure_ascii=False), 120)
+        return jsonify({"title": txt.strip().strip('"')[:70]})
+    except Exception as e:
+        return err(f"La IA no pudo: {e}", 500)
+
+
 @app.post("/api/suggest/<jid>")
 def api_suggest(jid):
     j = get_job(jid)
@@ -3625,6 +3653,15 @@ ol{padding-left:20px;margin:6px 0} li{margin:5px 0}
  .top{display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg2) 94%,transparent);border-bottom:1px solid var(--line);padding:8px 12px}
  .top button{background:var(--card2);color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:7px 11px;font-size:18px}
  .main{padding:12px 12px 80px}
+}
+@media(max-width:900px){
+ .big{grid-template-columns:1fr!important;gap:8px}
+ .big>div:first-child{position:sticky;top:0;z-index:6;background:var(--bg2);padding-bottom:4px}
+ #e_stage{max-width:min(100%,calc(40vh*9/16));margin:0 auto}
+ #e_tabs{position:fixed;left:0;right:0;bottom:0;z-index:60;margin:0;flex-wrap:nowrap;overflow-x:auto;gap:2px;padding:8px 8px calc(8px + env(safe-area-inset-bottom));background:var(--bg2);border-top:1px solid var(--line)}
+ #e_tabs button{flex:0 0 auto;border:0;background:transparent;padding:8px 14px;font-size:12px;white-space:nowrap}
+ #e_tabs button.on{background:var(--card2);color:var(--ac)}
+ #e_pane{padding-bottom:70px}
 }
 </style>
 </head>
@@ -3857,6 +3894,7 @@ function renderSettings(el,s,onchange){
   <div><label>Posición del logo</label><select data-k="logo_pos">${opts({tr:"Arriba derecha",tl:"Arriba izquierda",br:"Abajo derecha",bl:"Abajo izquierda"},s.logo_pos)}</select></div></div>
   <label>Texto de intro (2 s, opcional)</label><input type="text" data-k="intro_text" maxlength="80" value="${esc(s.intro_text)}" placeholder="Ej: ¡Mira esto!">
   <label>Texto final (2 s, opcional)</label><input type="text" data-k="outro_text" maxlength="80" value="${esc(s.outro_text)}" placeholder="Ej: Sígueme en Kick">
+  <label>Sonido al tapar groserías</label><select data-k="profanity_sound">${opts({mute:"Silencio",beep:"Pitido (beep)",low:"Tono grave"},s.profanity_sound||"mute")}</select>
   <div class="chk"><input type="checkbox" data-k="mute_profanity" ${s.mute_profanity?"checked":""}><span>🤐 Tapar groserías (silencia solo la palabra)</span></div>
   <div class="chk"><input type="checkbox" data-k="auto_create" ${s.auto_create?"checked":""}><span>Crear los clips automáticamente al terminar de analizar</span></div>`;
   const read=()=>{const o={};el.querySelectorAll("[data-k]").forEach(i=>{const k=i.dataset.k;let v=i.type==="checkbox"?i.checked:i.value;
@@ -4157,7 +4195,8 @@ function openEditor(i){
   <div>
    <div class="tabs" id="e_tabs"><button data-et="ov">🔤 Texto e imágenes</button><button data-et="sub">💬 Subtítulos</button><button data-et="fr">🎯 Encuadre</button><button data-et="tm">✂️ Tiempo</button><button data-et="ti">🏷️ Título</button></div>
    <div id="e_pane"></div>
-   <div class="row" style="margin-top:14px"><button class="btn lg grow" id="e_make">🔄 Rehacer este clip</button></div>
+   <div class="g2" style="margin-top:14px"><div><label>Calidad de exportación</label><select id="e_q"><option value="alta" selected>Máxima</option><option value="media">Media</option><option value="baja">Ligera</option></select></div><div><label>Resolución</label><select id="e_res"><option value="1080" selected>1080p</option><option value="720">720p</option></select></div></div>
+   <div class="row" style="margin-top:10px"><button class="btn lg grow" id="e_make">🔄 Rehacer este clip</button></div>
    <div class="row" style="margin-top:8px" id="e_after"></div>
   </div></div>`;
   const E=()=>clipEdit(JOB.clips.find(x=>x.i===i));
@@ -4165,7 +4204,7 @@ function openEditor(i){
   let ovm=null;
   const refreshBg=()=>{if(!EDSHOWVID)stageBg(stage,E())};
   const showTab=t=>{
-    EDTAB=t;$$("#e_tabs [data-et]").forEach(x=>x.classList.toggle("on",x.dataset.et===t));const e=E(),pane=$("#e_pane");ovm=null;
+    EDTAB=t;stage.onpointerdown=null;$$("#e_tabs [data-et]").forEach(x=>x.classList.toggle("on",x.dataset.et===t));const e=E(),pane=$("#e_pane");ovm=null;
     if(t==="ov"){pane.innerHTML=`<div id="e_ovp"></div>`;ovm=mountOv(stage,$("#e_ovp"),e.overlays,()=>{})}
     else{stage.querySelectorAll(".ov").forEach(x=>x.remove());stage.onpointerdown=stage.onpointermove=stage.onpointerup=null;
       if(t==="ov")return;
@@ -4180,8 +4219,11 @@ function openEditor(i){
     refreshBg();
   };
   function paneTitle(){const e=E();$("#e_pane").innerHTML=`<label>Título del clip</label><input type="text" id="e_title" maxlength="70" value="${esc(e.title)}">
+    <div class="row" style="margin:8px 0"><button class="btn sec sm" id="e_ai">✨ Elegir título con IA</button><span class="tiny" id="e_aimsg"></span></div>
     <div class="chk"><input type="checkbox" id="e_ton" ${e.title_on?"checked":""}><span>Mostrar el título arriba (tarjeta blanca)</span></div>`;
-    $("#e_title").oninput=ev=>{E().title=ev.target.value};$("#e_ton").onchange=ev=>{E().title_on=ev.target.checked}}
+    $("#e_title").oninput=ev=>{E().title=ev.target.value};$("#e_ton").onchange=ev=>{E().title_on=ev.target.checked};
+    $("#e_ai").onclick=async()=>{const m=$("#e_aimsg"),bt=$("#e_ai");bt.disabled=true;m.textContent="Analizando el video…";
+      try{const r=await api("/api/title/"+cur+"/"+i,{json:{}});E().title=r.title;$("#e_title").value=r.title;m.textContent="Listo ✓"}catch(er){m.textContent=er.message}bt.disabled=false}}
   function paneTime(){const e=E();$("#e_pane").innerHTML=`<div class="g2"><div><label>Inicio (m:ss)</label><div class="row"><button class="btn sec sm" data-nudge="start:-1">−1</button><input type="text" id="e_start" value="${fmtT(e.start)}" style="flex:1;min-width:0"><button class="btn sec sm" data-nudge="start:1">+1</button></div></div>
     <div><label>Final (m:ss)</label><div class="row"><button class="btn sec sm" data-nudge="end:-1">−1</button><input type="text" id="e_end" value="${fmtT(e.end)}" style="flex:1;min-width:0"><button class="btn sec sm" data-nudge="end:1">+1</button></div></div></div>
     <div class="tiny" id="e_dur"></div>
@@ -4210,6 +4252,9 @@ function openEditor(i){
     $("#e_pane").onclick=ev=>{const l=ev.target.dataset.l;if(l!==undefined&&ev.target.closest("#e_lay")){E().layout=l;upd()}
       const p=ev.target.dataset.pos;if(p){const [x,y]=p.split(",").map(Number),e=E();e.cx=x;e.cy=y;$("#e_cx").value=x*100;$("#e_cy").value=y*100;upd()}};
     $("#e_pane").oninput=ev=>{const e=E();if(ev.target.id==="e_cx")e.cx=ev.target.value/100;if(ev.target.id==="e_cy")e.cy=ev.target.value/100;if(ev.target.id==="e_zoom")e.zoom=+ev.target.value;upd()};
+    stage.onpointerdown=ev=>{if(ev.target.closest(".ov"))return;const e=E(),r=stage.getBoundingClientRect();let x0=ev.clientX,y0=ev.clientY;
+      const mv=m=>{const k=1.3/(e.zoom||1);e.cx=Math.min(1,Math.max(0,e.cx-(m.clientX-x0)/r.width*k));e.cy=Math.min(1,Math.max(0,e.cy-(m.clientY-y0)/r.height*k));x0=m.clientX;y0=m.clientY;$("#e_cx").value=e.cx*100;$("#e_cy").value=e.cy*100;upd()};
+      const up=()=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up)};addEventListener("pointermove",mv);addEventListener("pointerup",up)};
     upd();
   }
   function paneSub(){const e=E();
@@ -4230,7 +4275,7 @@ function openEditor(i){
     EDSHOWVID=true;stage.innerHTML="";stage.style.backgroundImage="none";const v=document.createElement("video");v.controls=true;v.playsInline=true;v.autoplay=true;v.src=`/clipfile/${JOB.id}/${last.n}`;v.style.cssText="width:100%;height:100%;object-fit:cover;max-height:none;border-radius:0";stage.appendChild(v);$("#e_tv").textContent="✏️ Volver a editar"};
   $("#eclose").onclick=()=>{m.classList.add("hide");EDI=null;stage.innerHTML=""};
   $("#e_make").onclick=async()=>{const e=E();if(e.end-e.start<3){alert("El clip debe durar al menos 3 segundos");return}
-    $("#e_make").disabled=true;await makeClips([i]);await poll(true);$("#e_make").disabled=false;EDSHOWVID=false;restoreStage();showTab(EDTAB)};
+    $("#e_make").disabled=true;await makeClips([i],Object.assign($("#set-job").getSettings(),{quality:$("#e_q").value,resolution:$("#e_res").value}));await poll(true);$("#e_make").disabled=false;EDSHOWVID=false;restoreStage();showTab(EDTAB)};
   showTab(EDTAB);syncEditor();
 }
 function syncEditor(){
