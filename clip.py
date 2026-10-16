@@ -3689,6 +3689,16 @@ ol{padding-left:20px;margin:6px 0} li{margin:5px 0}
  #e_tabs button{flex:1 1 0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;font-size:10px}
  #e_tabs button i{font-style:normal;font-size:20px}
 }
+.lgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.lc{display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 4px;border-radius:12px;background:var(--card2);border:2px solid var(--line);color:var(--tx);font-size:11px;font-weight:700}
+.lc.on{border-color:var(--ac)}
+@media(max-width:900px){
+ .modal.editfs>div{display:flex;flex-direction:column;overflow:hidden;padding:8px 10px 0}
+ .modal.editfs .big{flex:1;min-height:0;display:flex!important;flex-direction:column;gap:6px}
+ .modal.editfs .big>div:first-child{position:static;flex:0 0 auto;padding:0}
+ .modal.editfs #e_stage{height:38vh;width:auto;aspect-ratio:9/16;max-width:100%;margin:0 auto}
+ .modal.editfs .big>div:last-child{flex:1;min-height:0;overflow:auto;background:var(--card);border-radius:20px 20px 0 0;padding:12px 12px 90px}
+}
 </style>
 </head>
 <body>
@@ -4141,6 +4151,9 @@ async function shareClip(ex){
 
 /* --- editor de cada clip (estilo CapCut: textos, imágenes, subtítulos, encuadre, tiempo) --- */
 let EDI=null,EDT=0,EDTAB="ov",EDSHOWVID=false;
+const LAYASKED={};
+const LM={fill:'<i style="flex:1;background:#38bdf8"></i>',split:'<i style="flex:0 0 38%;background:#f0abfc"></i><i style="flex:1;background:#38bdf8"></i>',circle:'<i style="flex:1;background:#38bdf8"></i><b style="position:absolute;right:6px;top:8px;width:18px;height:18px;border-radius:50%;background:#f0abfc"></b>',cam:'<i style="flex:1;background:#f0abfc"></i>',game:'<i style="flex:1;background:#38bdf8"></i>',horizontal:'<i style="flex:0 0 30%;margin:auto 0;background:#38bdf8"></i>',dual:'<i style="flex:1;background:#38bdf8"></i><i style="flex:1;background:#7dd3fc"></i>',auto:'<i style="flex:1;background:linear-gradient(#38bdf8,#f0abfc)"></i>',"":'<i style="flex:1;background:#475569"></i>'};
+const layMini=k=>`<span style="display:flex;flex-direction:column;position:relative;width:46px;height:82px;border-radius:7px;overflow:hidden;gap:2px;pointer-events:none">${LM[k]||""}</span>`;
 const LAYB={"":"Igual que el resto",auto:"Inteligente",fill:"Pantalla completa vertical",split:"Cámara arriba + gameplay",circle:"Cámara en círculo",cam:"Solo cámara",game:"Solo gameplay",horizontal:"Horizontal 16:9",dual:"Dos pantallas apiladas"};
 function effLayout(ed){return ed.layout||(JOB.settings&&JOB.settings.layout)||"auto"}
 function ovCss(o,W){
@@ -4219,9 +4232,9 @@ function openEditor(i){
   <div class="big" style="margin-top:10px"><div><div class="stage" id="e_stage"></div>
     <div class="row" style="margin-top:6px;justify-content:center"><button class="btn sec sm" id="e_tv">▶ Ver el clip creado</button></div><div class="tiny" id="e_state" style="text-align:center;margin-top:4px"></div><div class="tiny" style="text-align:center">Vista aproximada: el resultado final puede variar un poco.</div></div>
   <div>
-   <div class="tabs" id="e_tabs"><button data-et="ov"><i>🔤</i>Texto</button><button data-et="sub"><i>💬</i>Subs</button><button data-et="fr"><i>🎯</i>Encuadre</button><button data-et="tm"><i>✂️</i>Recortar</button><button data-et="bg"><i>🖼</i>Fondo</button><button data-et="au"><i>🎵</i>Audio</button><button data-et="ti"><i>🏷</i>Título</button></div>
+   <div class="tabs" id="e_tabs"><button data-et="fr"><i>🎬</i>Diseño</button><button data-et="ov"><i>🔤</i>Elementos</button><button data-et="ia"><i>✨</i>Mejoras</button><button data-et="au"><i>🎵</i>Audio</button><button data-et="sub"><i>💬</i>Subs</button><button data-et="tm"><i>✂️</i>Recortar</button><button data-et="bg"><i>🖼</i>Fondo</button></div>
    <div id="e_pane"></div>
-   <div class="g2" style="margin-top:14px"><div><label>Calidad de exportación</label><select id="e_q"><option value="alta" selected>Máxima</option><option value="media">Media</option><option value="baja">Ligera</option></select></div><div><label>Resolución</label><select id="e_res"><option value="1080" selected>1080p</option><option value="720">720p</option></select></div></div>
+   <div class="g2" style="margin-top:14px;grid-template-columns:1fr 1fr 1fr"><div><label>Calidad de exportación</label><select id="e_q"><option value="alta" selected>Máxima</option><option value="media">Media</option><option value="baja">Ligera</option></select></div><div><label>Resolución</label><select id="e_res"><option value="1080" selected>1080p</option><option value="720">720p</option></select></div><div><label>Cuadros</label><select id="e_fps"><option value="30" selected>30 fps</option><option value="60">60 fps</option></select></div></div>
    <div class="row" style="margin-top:10px"><button class="btn lg grow" id="e_make">🔄 Rehacer este clip</button></div>
    <div class="row" style="margin-top:8px" id="e_after"></div>
   </div></div>`;
@@ -4236,7 +4249,7 @@ function openEditor(i){
       if(t==="ov")return;
       if(t==="sub")paneSub();
       if(t==="fr")paneFrame();
-      if(t==="tm")paneTime();if(t==="bg")paneBg();if(t==="au")paneAud();
+      if(t==="tm")paneTime();if(t==="bg")paneBg();if(t==="ia")paneIA();if(t==="au")paneAud();
       if(t==="ti")paneTitle();
       /* los textos se siguen viendo (solo lectura) en las otras pestañas */
       e.overlays.forEach(o=>{const d=document.createElement("div");d.className="ov";d.style.left=o.x*100+"%";d.style.top=o.y*100+"%";d.style.pointerEvents="none";d.style.border="0";
@@ -4269,6 +4282,12 @@ function openEditor(i){
     $("#e_ts").onchange=ev=>{EDT=+ev.target.value;upd();refreshBg()};$("#e_ts").oninput=ev=>{$("#e_tvv").textContent=fmtT(JOB.base_offset+ +ev.target.value)};
     $("#e_orig").onclick=()=>{const e=E();$("#e_origbox").innerHTML=`<video controls playsinline autoplay src="/vod/${JOB.id}#t=${e.start},${e.end}" style="width:100%;max-height:300px"></video>`};
   }
+  function paneIA(){paneTitle();const S=Object.assign({},JOB.settings||{},AUD);
+    $("#e_pane").insertAdjacentHTML("beforeend",`<hr style="border:0;border-top:1px solid var(--line);margin:14px 0"><div class="chk"><input type="checkbox" id="m_zoom" ${S.zoom_peak?"checked":""}><span>Zoom rápido en el momento clave</span></div>
+      <div class="chk"><input type="checkbox" id="m_norm" ${S.normalize?"checked":""}><span>Nivelar el volumen</span></div>
+      <div class="chk"><input type="checkbox" id="m_cen" ${S.mute_profanity?"checked":""}><span>Tapar groserías</span></div>
+      <select id="m_snd"><option value="mute"${S.profanity_sound==="mute"||!S.profanity_sound?" selected":""}>Silencio</option><option value="beep"${S.profanity_sound==="beep"?" selected":""}>Pitido (beep)</option><option value="low"${S.profanity_sound==="low"?" selected":""}>Tono grave</option></select>`);
+    $("#e_pane").onchange=ev=>{if(!ev.target.id||ev.target.id.indexOf("m_")!==0)return;AUD.zoom_peak=$("#m_zoom").checked;AUD.normalize=$("#m_norm").checked;AUD.mute_profanity=$("#m_cen").checked;AUD.profanity_sound=$("#m_snd").value}}
   function paneBg(){const e=E(),b=e.bg,ims=ASSETS.filter(a=>a.kind==="logo");
     $("#e_pane").innerHTML=`<div class="chk"><input type="checkbox" id="b_on" ${b.mode==="chroma"?"checked":""}><span>Quitar un color del video (pantalla verde / chroma key)</span></div>
     <div class="g2"><div><label>Color a quitar</label><input type="color" id="b_col" value="#${b.color||"00ff00"}"></div><div><label>Intensidad: <b id="b_sv"></b></label><input type="range" id="b_sim" min="0.05" max="0.5" step="0.01" value="${b.sim||0.25}"></div></div>
@@ -4284,7 +4303,10 @@ function openEditor(i){
     const set=()=>{AUD.music=$("#a_m").value;AUD.music_volume=+$("#a_v").value;$("#a_vv").textContent=AUD.music_volume.toFixed(2)};
     $("#e_pane").oninput=$("#e_pane").onchange=set;set()}
   function paneFrame(){var pkPlace=null;const e=E(),L=effLayout(e);$("#e_pane").innerHTML=`<label>Diseño de este clip</label>
-    <div class="seg" id="e_lay">${Object.entries(LAYB).map(([k,t])=>`<button data-l="${k}">${esc(t)}</button>`).join("")}</div>
+    <div class="lgrid" id="e_lay">${Object.entries(LAYB).map(([k,t])=>`<button class="lc" data-l="${k}">${layMini(k)}<span style="pointer-events:none">${esc(t)}</span></button>`).join("")}</div>
+    <div id="e_splitbox" style="margin-top:12px"><label>Altura de la cámara: <b id="sp_v"></b>%</label><input type="range" id="sp" min="20" max="60" value="${AUD.split_pct!==undefined?AUD.split_pct:((JOB.settings&&JOB.settings.split_pct)||38)}">
+      <div class="seg" id="co" style="margin-top:6px"><button data-co="top">Cámara arriba</button><button data-co="bottom">Cámara abajo</button></div>
+      <div class="row" style="margin-top:8px"><button class="btn sec sm" id="lay_all">Aplicar a todos los clips</button><span class="tiny" id="lay_msg"></span></div></div>
     <div id="e_camwarn"></div>
     <div id="e_crop"><h3>Encuadre (pantalla completa)</h3><div class="tiny">Mueve la zona y el zoom hasta que se vea lo que quieres (tu cámara, la pantalla…). Se aplica con “Pantalla completa” (o “Inteligente” si elige ese diseño).</div>
       <label>Izquierda ↔ Derecha: <b id="e_xv"></b>%</label><input type="range" id="e_cx" min="0" max="100" value="${Math.round(e.cx*100)}">
@@ -4312,6 +4334,11 @@ const crop=$("#e_crop");crop.querySelectorAll("label,input[type=range]").forEach
     pk.querySelector("#pk_h").onpointerdown=ev=>{ev.preventDefault();ev.stopPropagation();const b=pk.getBoundingClientRect(),e=E();
       const mv=m=>{const g=geo(),w=Math.max(0.05,(m.clientX-b.left)/b.width-e.cx*(1-g.wf));e.zoom=Math.min(4,Math.max(g.zmin,oa/g.ar/Math.min(1,w)));upd()};
       const up=()=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up)};addEventListener("pointermove",mv);addEventListener("pointerup",up)};
+const sp=$("#sp"),spv=()=>{$("#sp_v").textContent=sp.value;$$("#co [data-co]").forEach(b=>b.classList.toggle("on",b.dataset.co===(AUD.cam_order||(JOB.settings&&JOB.settings.cam_order)||"top")))};
+    sp.oninput=()=>{AUD.split_pct=+sp.value;spv()};spv();
+    $$("#co [data-co]").forEach(b=>b.onclick=()=>{AUD.cam_order=b.dataset.co;spv()});
+    $("#lay_all").onclick=async()=>{const l=E().layout;JOB.clips.forEach(c=>{clipEdit(c).layout=l});AUD.split_pct=+sp.value;AUD.cam_order=AUD.cam_order||"top";
+      try{await api("/api/settings/"+cur,{json:Object.assign({split_pct:+sp.value,cam_order:AUD.cam_order},l?{layout:l}:{})});$("#lay_msg").textContent=" Aplicado a todos ✓"}catch(er){$("#lay_msg").textContent=er.message}};
     stage.onpointerdown=ev=>{if(ev.target.closest(".ov"))return;const e=E(),r=stage.getBoundingClientRect();let x0=ev.clientX,y0=ev.clientY;
       const mv=m=>{const k=1.3/(e.zoom||1);e.cx=Math.min(1,Math.max(0,e.cx-(m.clientX-x0)/r.width*k));e.cy=Math.min(1,Math.max(0,e.cy-(m.clientY-y0)/r.height*k));x0=m.clientX;y0=m.clientY;$("#e_cx").value=e.cx*100;$("#e_cy").value=e.cy*100;upd()};
       const up=()=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up)};addEventListener("pointermove",mv);addEventListener("pointerup",up)};
@@ -4336,7 +4363,8 @@ const crop=$("#e_crop");crop.querySelectorAll("label,input[type=range]").forEach
   $("#eclose").onclick=()=>{m.classList.add("hide");EDI=null;stage.innerHTML=""};
   $("#etop").onclick=()=>$("#e_make").click();
   $("#e_make").onclick=async()=>{const e=E();if(e.end-e.start<3){alert("El clip debe durar al menos 3 segundos");return}
-    $("#e_make").disabled=true;await makeClips([i],Object.assign($("#set-job").getSettings(),AUD,{quality:$("#e_q").value,resolution:$("#e_res").value}));await poll(true);$("#e_make").disabled=false;EDSHOWVID=false;restoreStage();showTab(EDTAB)};
+    $("#e_make").disabled=true;await makeClips([i],Object.assign($("#set-job").getSettings(),AUD,{quality:$("#e_q").value,resolution:$("#e_res").value,fps:$("#e_fps").value}));await poll(true);$("#e_make").disabled=false;EDSHOWVID=false;restoreStage();showTab(EDTAB)};
+  if(!LAYASKED[JOB.id]){LAYASKED[JOB.id]=1;EDTAB="fr"}
   showTab(EDTAB);syncEditor();
 }
 function syncEditor(){
