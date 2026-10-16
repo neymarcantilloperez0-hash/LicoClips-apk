@@ -3315,7 +3315,7 @@ def api_assets_add():
     ext = Path(f.filename).suffix.lower()
     if ext not in (".mp3", ".m4a", ".aac", ".wav", ".ogg", ".png", ".jpg", ".jpeg", ".webp"):
         return err("Usa música (mp3, m4a, wav, ogg) o una imagen (png, jpg, webp)")
-    stem = re.sub(r"[^A-Za-z0-9_-]+", "_", Path(f.filename).stem)[:50] or "recurso"
+    stem = re.sub(r"[^A-Za-z0-9_-]+", "_", (request.form.get("label") or "").strip() or Path(f.filename).stem).strip("_")[:50] or "recurso"
     name = stem + ext
     k = 1
     while (ASSETS_DIR / name).exists():
@@ -3682,6 +3682,12 @@ ol{padding-left:20px;margin:6px 0} li{margin:5px 0}
  #e_tabs button{flex:0 0 auto;border:0;background:transparent;padding:8px 14px;font-size:12px;white-space:nowrap}
  #e_tabs button.on{background:var(--card2);color:var(--ac)}
  #e_pane{padding-bottom:70px}
+}
+@media(max-width:900px){
+ .modal.editfs{align-items:stretch}
+ .modal.editfs>div{max-height:none;height:100%;border-radius:0;border:0;background:#08090d;padding:10px 12px 90px}
+ #e_tabs button{flex:1 1 0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;font-size:10px}
+ #e_tabs button i{font-style:normal;font-size:20px}
 }
 </style>
 </head>
@@ -4207,13 +4213,13 @@ function openEditor(i){
   const c=JOB.clips.find(x=>x.i===i);if(!c)return;const ed=clipEdit(c);
   EDI=i;EDT=Math.round(c.t_peak!=null?c.t_peak:(ed.start+ed.end)/2);EDSHOWVID=false;
   const rank=[...JOB.clips].sort((a,b)=>(b.intensity||0)-(a.intensity||0)).findIndex(x=>x.i===i)+1;
-  const m=$("#modal"),b=$("#modalbody");m.classList.remove("hide");
-  b.innerHTML=`<div class="row"><h2 class="grow" style="margin:0">✏️ Editar clip #${rank} <span class="pill ${esc(c.cat)}">${esc(CATN[c.cat]||c.cat)}</span></h2><button class="btn sec sm" id="eclose">Cerrar</button></div>
+  const m=$("#modal"),b=$("#modalbody");m.classList.remove("hide");m.classList.add("editfs");
+  b.innerHTML=`<div class="row"><h2 class="grow" style="margin:0">✏️ Editar clip #${rank} <span class="pill ${esc(c.cat)}">${esc(CATN[c.cat]||c.cat)}</span></h2><button class="btn sm" id="etop">Exportar</button><button class="btn sec sm" id="eclose">Cerrar</button></div>
   ${c.why?`<div class="tiny" style="margin:4px 0">🔥 Nota ${Math.round((c.intensity||0)*10)}/100 · ${esc(c.why)}</div>`:""}
   <div class="big" style="margin-top:10px"><div><div class="stage" id="e_stage"></div>
     <div class="row" style="margin-top:6px;justify-content:center"><button class="btn sec sm" id="e_tv">▶ Ver el clip creado</button></div><div class="tiny" id="e_state" style="text-align:center;margin-top:4px"></div><div class="tiny" style="text-align:center">Vista aproximada: el resultado final puede variar un poco.</div></div>
   <div>
-   <div class="tabs" id="e_tabs"><button data-et="ov">🔤 Texto e imágenes</button><button data-et="sub">💬 Subtítulos</button><button data-et="fr">🎯 Encuadre</button><button data-et="tm">✂️ Tiempo</button><button data-et="bg">🖼 Fondo</button><button data-et="au">🎵 Audio</button><button data-et="ti">🏷️ Título</button></div>
+   <div class="tabs" id="e_tabs"><button data-et="ov"><i>🔤</i>Texto</button><button data-et="sub"><i>💬</i>Subs</button><button data-et="fr"><i>🎯</i>Encuadre</button><button data-et="tm"><i>✂️</i>Recortar</button><button data-et="bg"><i>🖼</i>Fondo</button><button data-et="au"><i>🎵</i>Audio</button><button data-et="ti"><i>🏷</i>Título</button></div>
    <div id="e_pane"></div>
    <div class="g2" style="margin-top:14px"><div><label>Calidad de exportación</label><select id="e_q"><option value="alta" selected>Máxima</option><option value="media">Media</option><option value="baja">Ligera</option></select></div><div><label>Resolución</label><select id="e_res"><option value="1080" selected>1080p</option><option value="720">720p</option></select></div></div>
    <div class="row" style="margin-top:10px"><button class="btn lg grow" id="e_make">🔄 Rehacer este clip</button></div>
@@ -4277,7 +4283,7 @@ function openEditor(i){
     <div class="tiny">${ms.length?"La música baja sola cuando hablan.":"Sube tu música en Mi cuenta → Música, logo e imágenes."}</div>`;
     const set=()=>{AUD.music=$("#a_m").value;AUD.music_volume=+$("#a_v").value;$("#a_vv").textContent=AUD.music_volume.toFixed(2)};
     $("#e_pane").oninput=$("#e_pane").onchange=set;set()}
-  function paneFrame(){const e=E(),L=effLayout(e);$("#e_pane").innerHTML=`<label>Diseño de este clip</label>
+  function paneFrame(){var pkPlace=null;const e=E(),L=effLayout(e);$("#e_pane").innerHTML=`<label>Diseño de este clip</label>
     <div class="seg" id="e_lay">${Object.entries(LAYB).map(([k,t])=>`<button data-l="${k}">${esc(t)}</button>`).join("")}</div>
     <div id="e_camwarn"></div>
     <div id="e_crop"><h3>Encuadre (pantalla completa)</h3><div class="tiny">Mueve la zona y el zoom hasta que se vea lo que quieres (tu cámara, la pantalla…). Se aplica con “Pantalla completa” (o “Inteligente” si elige ese diseño).</div>
@@ -4285,13 +4291,27 @@ function openEditor(i){
       <label>Arriba ↔ Abajo: <b id="e_yv"></b>%</label><input type="range" id="e_cy" min="0" max="100" value="${Math.round(e.cy*100)}">
       <label>Zoom: <b id="e_zv"></b>×</label><input type="range" id="e_zoom" min="1" max="4" step="0.05" value="${e.zoom}">
       <div class="seg" style="margin-top:6px"><button data-pos="0.5,0.5">Centro</button><button data-pos="0,0.5">Izquierda</button><button data-pos="1,0.5">Derecha</button><button data-pos="0.5,0">Arriba</button><button data-pos="0.5,1">Abajo</button></div></div>`;
-    const upd=()=>{const e=E(),L=effLayout(e);$$("#e_lay [data-l]").forEach(bt=>bt.classList.toggle("on",bt.dataset.l===(e.layout||"")));
+    const upd=()=>{const e=E(),L=effLayout(e);if(pkPlace)pkPlace();$$("#e_lay [data-l]").forEach(bt=>bt.classList.toggle("on",bt.dataset.l===(e.layout||"")));
       $("#e_xv").textContent=Math.round(e.cx*100);$("#e_yv").textContent=Math.round(e.cy*100);$("#e_zv").textContent=(+e.zoom).toFixed(2);
       $("#e_crop").classList.toggle("hide",!(L==="fill"||L==="auto"));
       $("#e_camwarn").innerHTML=(camBig(JOB)&&(L==="split"||L==="circle"||L==="cam"))?`<div class="msg warn">Tu cuadro de cámara ocupa casi todo el video, por eso este diseño se ve raro. Prueba “Pantalla completa vertical”.</div>`:"";refreshBg()};
     $("#e_pane").onclick=ev=>{const l=ev.target.dataset.l;if(l!==undefined&&ev.target.closest("#e_lay")){E().layout=l;upd()}
       const p=ev.target.dataset.pos;if(p){const [x,y]=p.split(",").map(Number),e=E();e.cx=x;e.cy=y;$("#e_cx").value=x*100;$("#e_cy").value=y*100;upd()}};
     $("#e_pane").oninput=ev=>{const e=E();if(ev.target.id==="e_cx")e.cx=ev.target.value/100;if(ev.target.id==="e_cy")e.cy=ev.target.value/100;if(ev.target.id==="e_zoom")e.zoom=+ev.target.value;upd()};
+const crop=$("#e_crop");crop.querySelectorAll("label,input[type=range]").forEach(x=>x.style.display="none");
+    const pk=document.createElement("div");pk.style.cssText="position:relative;width:100%;touch-action:none;margin:8px 0;background:#000;border-radius:10px;overflow:hidden";
+    pk.innerHTML=`<img id="pk_img" src="/api/frame/${JOB.id}/${EDT}" style="display:block;width:100%" draggable="false"><div id="pk_r" style="position:absolute;border:3px solid var(--ac);box-shadow:0 0 0 999px #000a;box-sizing:border-box;touch-action:none"><div id="pk_h" style="position:absolute;right:-16px;bottom:-16px;width:32px;height:32px;border-radius:50%;background:var(--ac);touch-action:none"></div></div>`;
+    crop.querySelector(".tiny").after(pk);crop.querySelector(".tiny").textContent="Arrastra el recuadro para elegir qué se ve. Usa el círculo de la esquina para hacerlo más grande o pequeño (zoom).";
+    const oa=9/16,pimg=pk.querySelector("img"),pr=pk.querySelector("#pk_r");
+    const geo=()=>{const ar=(pimg.naturalWidth||16)/(pimg.naturalHeight||9),e=E(),zmin=Math.max(1,oa/ar),z=Math.min(4,Math.max(e.zoom,zmin));return {ar,zmin,z,hf:1/z,wf:Math.min(1,oa/ar/z)}};
+    pkPlace=()=>{const e=E(),g=geo();pr.style.width=g.wf*100+"%";pr.style.height=g.hf*100+"%";pr.style.left=e.cx*(1-g.wf)*100+"%";pr.style.top=e.cy*(1-g.hf)*100+"%"};
+    pimg.onload=pkPlace;pkPlace();
+    pr.onpointerdown=ev=>{if(ev.target.id==="pk_h")return;ev.preventDefault();const b=pk.getBoundingClientRect(),e=E(),g=geo();let l=e.cx*(1-g.wf),t=e.cy*(1-g.hf),x0=ev.clientX,y0=ev.clientY;
+      const mv=m=>{l=Math.min(1-g.wf,Math.max(0,l+(m.clientX-x0)/b.width));t=Math.min(1-g.hf,Math.max(0,t+(m.clientY-y0)/b.height));x0=m.clientX;y0=m.clientY;e.cx=1-g.wf>0.001?l/(1-g.wf):0.5;e.cy=1-g.hf>0.001?t/(1-g.hf):0.5;upd()};
+      const up=()=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up)};addEventListener("pointermove",mv);addEventListener("pointerup",up)};
+    pk.querySelector("#pk_h").onpointerdown=ev=>{ev.preventDefault();ev.stopPropagation();const b=pk.getBoundingClientRect(),e=E();
+      const mv=m=>{const g=geo(),w=Math.max(0.05,(m.clientX-b.left)/b.width-e.cx*(1-g.wf));e.zoom=Math.min(4,Math.max(g.zmin,oa/g.ar/Math.min(1,w)));upd()};
+      const up=()=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up)};addEventListener("pointermove",mv);addEventListener("pointerup",up)};
     stage.onpointerdown=ev=>{if(ev.target.closest(".ov"))return;const e=E(),r=stage.getBoundingClientRect();let x0=ev.clientX,y0=ev.clientY;
       const mv=m=>{const k=1.3/(e.zoom||1);e.cx=Math.min(1,Math.max(0,e.cx-(m.clientX-x0)/r.width*k));e.cy=Math.min(1,Math.max(0,e.cy-(m.clientY-y0)/r.height*k));x0=m.clientX;y0=m.clientY;$("#e_cx").value=e.cx*100;$("#e_cy").value=e.cy*100;upd()};
       const up=()=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up)};addEventListener("pointermove",mv);addEventListener("pointerup",up)};
@@ -4314,6 +4334,7 @@ function openEditor(i){
     if(!last||last.status!=="done"){alert("Este clip todavía no está creado.");return}
     EDSHOWVID=true;stage.innerHTML="";stage.style.backgroundImage="none";const v=document.createElement("video");v.controls=true;v.playsInline=true;v.autoplay=true;v.src=`/clipfile/${JOB.id}/${last.n}`;v.style.cssText="width:100%;height:100%;object-fit:cover;max-height:none;border-radius:0";stage.appendChild(v);$("#e_tv").textContent="✏️ Volver a editar"};
   $("#eclose").onclick=()=>{m.classList.add("hide");EDI=null;stage.innerHTML=""};
+  $("#etop").onclick=()=>$("#e_make").click();
   $("#e_make").onclick=async()=>{const e=E();if(e.end-e.start<3){alert("El clip debe durar al menos 3 segundos");return}
     $("#e_make").disabled=true;await makeClips([i],Object.assign($("#set-job").getSettings(),AUD,{quality:$("#e_q").value,resolution:$("#e_res").value}));await poll(true);$("#e_make").disabled=false;EDSHOWVID=false;restoreStage();showTab(EDTAB)};
   showTab(EDTAB);syncEditor();
@@ -4509,7 +4530,7 @@ async function loadSettingsTab(){
 }
 $("#savekeys").onclick=async()=>{try{CFG=await api("/api/config",{json:{anthropic_key:$("#k_ai").value,openai_key:$("#k_stt").value}});$("#k_ai").value=$("#k_stt").value="";$("#keymsg").innerHTML='<div class="msg ok">Guardado</div>';loadSettingsTab()}catch(e){$("#keymsg").innerHTML=`<div class="msg bad">${esc(e.message)}</div>`}};
 $("#savedef").onclick=async()=>{try{CFG=await api("/api/config",{json:{defaults:$("#set-def").getSettings()}});renderSettings($("#set-new"),CFG.defaults);$("#defmsg").innerHTML='<div class="msg ok">Guardado</div>'}catch(e){$("#defmsg").innerHTML=`<div class="msg bad">${esc(e.message)}</div>`}};
-$("#assetup").onclick=async()=>{const f=$("#assetfile").files[0];if(!f)return;const fd=new FormData();fd.append("file",f);try{await api("/api/assets",{method:"POST",body:fd});$("#assetfile").value="";loadSettingsTab()}catch(e){alert(e.message)}};
+$("#assetup").onclick=async()=>{const f=$("#assetfile").files[0];if(!f)return;const nm=prompt("Ponle un nombre para reconocerlo después:",f.name.replace(/\.[^.]+$/,""));if(nm===null)return;const fd=new FormData();fd.append("file",f);fd.append("label",nm);try{await api("/api/assets",{method:"POST",body:fd});$("#assetfile").value="";loadSettingsTab()}catch(e){alert(e.message)}};
 $("#assets").onclick=async e=>{const b=e.target.closest("[data-delasset]");if(!b)return;if(confirm("¿Borrar?")){await api("/api/assets/"+encodeURIComponent(b.dataset.delasset),{method:"DELETE"});loadSettingsTab()}};
 
 $("#tpls").onclick=async e=>{const u=e.target.dataset.tpluse,d=e.target.dataset.tpldel;
