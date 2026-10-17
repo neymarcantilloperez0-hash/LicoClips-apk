@@ -51,9 +51,43 @@ public class MainActivity extends Activity {
     private boolean polling = false;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
+    private String pending = "";
+
+    private void readIntent(Intent in) {
+        pending = "";
+        if (in == null) return;
+        String act = in.getAction();
+        if ("com.licoclips.app.TODAY".equals(act)) {
+            pending = "?go=today";
+        } else if (Intent.ACTION_SEND.equals(act)) {
+            String txt = in.getStringExtra(Intent.EXTRA_TEXT);
+            if (txt != null) {
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("https?://\\S+").matcher(txt);
+                if (m.find()) {
+                    try { pending = "?share=" + java.net.URLEncoder.encode(m.group(), "UTF-8"); } catch (Exception ignored) { }
+                }
+            }
+        }
+    }
+
+    private String takePending() {
+        String p = pending;
+        pending = "";
+        return p;
+    }
+
+    @Override
+    protected void onNewIntent(Intent in) {
+        super.onNewIntent(in);
+        setIntent(in);
+        readIntent(in);
+        if (!offline && web != null && !pending.isEmpty()) web.loadUrl(HOME + takePending());
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        readIntent(getIntent());
         root = new FrameLayout(this);
         root.setBackgroundColor(0xFF06121F);
         web = new WebView(this);
@@ -183,7 +217,7 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> {
                 if (up) {
                     offline = false;
-                    web.loadUrl(HOME);
+                    web.loadUrl(HOME + takePending());
                 } else {
                     showOffline();
                 }
@@ -235,7 +269,7 @@ public class MainActivity extends Activity {
                     if (up && offline) {
                         offline = false;
                         polling = false;
-                        web.loadUrl(HOME);
+                        web.loadUrl(HOME + takePending());
                     } else if (offline) {
                         handler.postDelayed(pollTask, 3000);
                     } else {

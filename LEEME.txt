@@ -1,3 +1,3 @@
-LicoClips - proyecto Android (WebView) que abre el servidor de Termux en http://127.0.0.1:5000
+CostaClips - proyecto Android (WebView) que abre el servidor de Termux en http://127.0.0.1:5000
 Si el servidor esta apagado muestra una pantalla animada con los comandos para prenderlo.
-GitHub lo compila solo (carpeta .github/workflows) y deja LicoClips.apk en "Releases".
+GitHub lo compila solo (carpeta .github/workflows) y deja CostaClips.apk en "Releases".

@@ -1,4 +1,4 @@
-name: Crear APK de LicoClips
+name: Crear APK de CostaClips
 
 on:
   push:
@@ -27,17 +27,17 @@ jobs:
         run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Renombrar
-        run: cp app/build/outputs/apk/debug/app-debug.apk LicoClips.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk CostaClips.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: LicoClips-apk
-          path: LicoClips.apk
+          name: CostaClips-apk
+          path: CostaClips.apk
 
       - name: Publicar para descargar
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-${{ github.run_number }}
-          name: LicoClips (versión ${{ github.run_number }})
-          files: LicoClips.apk
+          name: CostaClips (versión ${{ github.run_number }})
+          files: CostaClips.apk
           make_latest: true

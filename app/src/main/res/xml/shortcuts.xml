@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="today"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/sc_today_short"
+        android:shortcutLongLabel="@string/sc_today_long">
+        <intent
+            android:action="com.licoclips.app.TODAY"
+            android:targetPackage="com.licoclips.app"
+            android:targetClass="com.licoclips.app.MainActivity" />
+    </shortcut>
+</shortcuts>

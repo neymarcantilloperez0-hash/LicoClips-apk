@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sc_today_short">Clips de hoy</string>
+    <string name="sc_today_long">Clips de hoy (15 clips)</string>
+</resources>
